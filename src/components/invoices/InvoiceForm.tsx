@@ -3,7 +3,7 @@ import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { GlassCard } from '../ui/GlassCard';
-import { Save, Plus, Trash2, Calculator, ArrowLeft } from 'lucide-react';
+import { Save, Plus, Trash2, Calculator, ArrowLeft, Percent } from 'lucide-react'; // Added Percent Icon
 import { clsx } from 'clsx';
 import type { Invoice, CurrencyCode } from '../../types';
 
@@ -12,49 +12,47 @@ interface Props {
   onCancel: () => void;
 }
 
-// Helper for currency symbols
 const CURRENCIES: Record<CurrencyCode, string> = {
   NGN: '₦', USD: '$', GBP: '£', EUR: '€'
 };
 
 export function InvoiceForm({ onComplete, onCancel }: Props) {
-  // 1. Fetch Customers for the Dropdown
   const customers = useLiveQuery(() => db.customers.toArray());
 
-  // 2. Setup Form
   const { register, control, handleSubmit, setValue, formState: { errors } } = useForm<any>({
     defaultValues: {
       currency: 'NGN',
       invoiceNumber: `INV-${Date.now().toString().slice(-4)}`,
       items: [{ description: '', quantity: 1, unitPrice: 0, total: 0 }],
       depositAmount: 0,
+      discountRate: 0, // Default 0%
       dateIssued: new Date().toISOString().split('T')[0],
       customerId: ''
     }
   });
 
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: "items"
-  });
+  const { fields, append, remove } = useFieldArray({ control, name: "items" });
 
-  // 3. Real-time Calculations
+  // Watch values for real-time math
   const items = useWatch({ control, name: "items" });
   const deposit = useWatch({ control, name: "depositAmount" });
   const currency = useWatch({ control, name: "currency" });
+  const discountRate = useWatch({ control, name: "discountRate" }); // Watch Discount
 
   const totals = useMemo(() => {
     const subtotal = items?.reduce((acc: number, item: any) => {
       return acc + (Number(item.quantity || 0) * Number(item.unitPrice || 0));
     }, 0) || 0;
 
-    const grandTotal = subtotal;
-    const balance = grandTotal - Number(deposit || 0);
+    // Calculate Discount Amount
+    const discountAmount = subtotal * (Number(discountRate || 0) / 100);
 
-    return { subtotal, grandTotal, balance };
-  }, [items, deposit]);
+    const grandTotal = Math.max(0, subtotal - discountAmount);
+    const balance = Math.max(0, grandTotal - Number(deposit || 0));
 
-  // 4. Submit Logic
+    return { subtotal, discountAmount, grandTotal, balance };
+  }, [items, deposit, discountRate]);
+
   const onSubmit = async (data: any) => {
     try {
       if (!data.customerId) {
@@ -72,7 +70,8 @@ export function InvoiceForm({ onComplete, onCancel }: Props) {
           total: item.quantity * item.unitPrice
         })),
         subtotal: totals.subtotal,
-        discount: 0,
+        discount: totals.discountAmount, // Save calculated amount
+        discountRate: Number(data.discountRate), // Save percentage
         tax: 0,
         grandTotal: totals.grandTotal,
         depositAmount: Number(data.depositAmount),
@@ -96,7 +95,6 @@ export function InvoiceForm({ onComplete, onCancel }: Props) {
 
   return (
     <div className="max-w-4xl mx-auto pb-20">
-      {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <button onClick={onCancel} className="p-2 hover:bg-white/10 rounded-full text-slate-400 transition-colors">
           <ArrowLeft size={20} />
@@ -109,7 +107,7 @@ export function InvoiceForm({ onComplete, onCancel }: Props) {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
-        {/* Section 1: Meta Data & Customer */}
+        {/* Section 1: Meta Data */}
         <GlassCard className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -130,32 +128,19 @@ export function InvoiceForm({ onComplete, onCancel }: Props) {
                 ))}
               </div>
             </div>
-
             <div>
               <label className={labelClass}>Invoice #</label>
-              <input
-                {...register('invoiceNumber', { required: "Invoice Number is required" })}
-                className={inputClass}
-              />
+              <input {...register('invoiceNumber', { required: "Required" })} className={inputClass} />
               {errors.invoiceNumber && <span className="text-red-400 text-xs">{errors.invoiceNumber.message as string}</span>}
             </div>
-
             <div>
               <label className={labelClass}>Date</label>
-              <input
-                type="date"
-                {...register('dateIssued', { required: true })}
-                className={inputClass}
-              />
+              <input type="date" {...register('dateIssued', { required: true })} className={inputClass} />
             </div>
           </div>
-
           <div className="mt-4">
             <label className={labelClass}>Customer</label>
-            <select
-              {...register('customerId', { required: "Customer is required" })}
-              className={clsx(inputClass, "[&>option]:bg-slate-900 [&>option]:text-white")}
-            >
+            <select {...register('customerId', { required: "Required" })} className={clsx(inputClass, "[&>option]:bg-slate-900 [&>option]:text-white")}>
               <option value="">Select a client...</option>
               {customers?.map(c => (
                 <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
@@ -165,7 +150,7 @@ export function InvoiceForm({ onComplete, onCancel }: Props) {
           </div>
         </GlassCard>
 
-        {/* Section 2: Items Table */}
+        {/* Section 2: Items */}
         <GlassCard className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-white">Order Items</h3>
@@ -177,42 +162,25 @@ export function InvoiceForm({ onComplete, onCancel }: Props) {
               <Plus size={14} /> Add Item
             </button>
           </div>
-
           <div className="space-y-3">
             {fields.map((field, index) => (
               <div key={field.id} className="flex flex-col md:flex-row gap-2 items-start md:items-center bg-white/5 p-3 rounded-xl border border-white/5">
                 <div className="flex-1 w-full">
                   <input
                     {...register(`items.${index}.description` as const, { required: true })}
-                    placeholder="Item description (e.g., Aso Oke Set)"
+                    placeholder="Item description"
                     className="bg-transparent border-none text-white placeholder-slate-600 focus:ring-0 w-full p-0 text-sm"
                   />
                 </div>
-
                 <div className="flex gap-2 w-full md:w-auto">
                   <div className="w-20">
-                     <input
-                      type="number"
-                      {...register(`items.${index}.quantity` as const)}
-                      className={clsx(inputClass, "text-right")}
-                      placeholder="Qty"
-                      min="1"
-                    />
+                     <input type="number" {...register(`items.${index}.quantity` as const)} className={clsx(inputClass, "text-right")} placeholder="Qty" min="1"/>
                   </div>
                   <div className="w-32 relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">{CURRENCIES[currency as CurrencyCode]}</span>
-                    <input
-                      type="number"
-                      {...register(`items.${index}.unitPrice` as const)}
-                      className={clsx(inputClass, "text-right pl-6")}
-                      placeholder="Price"
-                    />
+                    <input type="number" {...register(`items.${index}.unitPrice` as const)} className={clsx(inputClass, "text-right pl-6")} placeholder="Price"/>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => remove(index)}
-                    className="p-2 text-slate-500 hover:text-red-400 transition-colors"
-                  >
+                  <button type="button" onClick={() => remove(index)} className="p-2 text-slate-500 hover:text-red-400 transition-colors">
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -221,11 +189,31 @@ export function InvoiceForm({ onComplete, onCancel }: Props) {
           </div>
         </GlassCard>
 
-        {/* Section 3: Totals & Payment (Production Rule) */}
+        {/* Section 3: Totals, Discount & Payment */}
         <GlassCard className="p-6">
           <div className="flex flex-col md:flex-row gap-8">
-             {/* Deposit Input */}
+
+             {/* Left Column: Inputs */}
              <div className="flex-1 space-y-4">
+                {/* Discount Input */}
+                <div>
+                  <label className={labelClass}>Discount (%)</label>
+                  <div className="relative max-w-[150px]">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+                      <Percent size={14} />
+                    </span>
+                    <input
+                      type="number"
+                      {...register('discountRate')}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 pl-9 text-white focus:outline-none focus:border-indigo-500 transition-all"
+                      placeholder="0"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+                </div>
+
+                {/* Deposit Input */}
                 <div>
                   <label className={labelClass}>Deposit / Initial Payment</label>
                   <div className="relative">
@@ -243,19 +231,37 @@ export function InvoiceForm({ onComplete, onCancel }: Props) {
                 </div>
              </div>
 
-             {/* Summary */}
-             <div className="w-full md:w-64 space-y-3 pt-2">
+             {/* Right Column: Calculations */}
+             <div className="w-full md:w-72 space-y-3 pt-2 bg-black/20 p-4 rounded-xl border border-white/5 h-fit">
                 <div className="flex justify-between text-sm text-slate-400">
                   <span>Subtotal:</span>
                   <span>{CURRENCIES[currency as CurrencyCode]} {totals.subtotal.toLocaleString()}</span>
                 </div>
+
+                {/* Show Discount if applied */}
+                {totals.discountAmount > 0 && (
+                  <div className="flex justify-between text-sm text-green-400">
+                    <span>Discount ({discountRate}%):</span>
+                    <span>- {CURRENCIES[currency as CurrencyCode]} {totals.discountAmount.toLocaleString()}</span>
+                  </div>
+                )}
+
+                <div className="h-px bg-white/10 my-2" />
+
+                <div className="flex justify-between text-base font-semibold text-white">
+                  <span>Grand Total:</span>
+                  <span>{CURRENCIES[currency as CurrencyCode]} {totals.grandTotal.toLocaleString()}</span>
+                </div>
+
                 <div className="flex justify-between text-sm text-slate-400">
-                  <span>Deposit:</span>
+                  <span>Paid / Deposit:</span>
                   <span className="text-white">({CURRENCIES[currency as CurrencyCode]} {Number(deposit).toLocaleString()})</span>
                 </div>
+
                 <div className="h-px bg-white/10 my-2" />
-                <div className="flex justify-between text-lg font-bold text-white">
-                  <span>Balance Due:</span>
+
+                <div className="flex justify-between text-lg font-bold">
+                  <span className="text-white">Balance Due:</span>
                   <span className={totals.balance > 0 ? "text-orange-400" : "text-green-400"}>
                     {CURRENCIES[currency as CurrencyCode]} {totals.balance.toLocaleString()}
                   </span>
@@ -264,12 +270,8 @@ export function InvoiceForm({ onComplete, onCancel }: Props) {
           </div>
         </GlassCard>
 
-        {/* Action Bar */}
         <div className="flex justify-end pt-4">
-           <button
-            type="submit"
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all transform hover:-translate-y-1"
-          >
+           <button type="submit" className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all transform hover:-translate-y-1">
             <Save size={20} />
             Generate Invoice
           </button>

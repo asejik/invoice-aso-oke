@@ -5,15 +5,11 @@ import { BusinessProfileForm } from './components/forms/BusinessProfileForm';
 import { CustomerList } from './components/customers/CustomerList';
 import { InvoiceForm } from './components/invoices/InvoiceForm';
 import { InvoiceList } from './components/invoices/InvoiceList';
-import { Dashboard } from './components/dashboard/Dashboard'; // Import this
-import { useLiveQuery } from 'dexie-react-hooks';
+import { Dashboard } from './components/dashboard/Dashboard';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [status, setStatus] = useState('Checking DB...');
-
-  // Check if profile exists (to show warning if needed)
-  const profile = useLiveQuery(() => db.businessProfile.orderBy('id').first());
 
   useEffect(() => {
     async function initDB() {
@@ -49,7 +45,6 @@ function App() {
       case 'dashboard':
       default:
         return (
-          // Pass the navigation function so the "Create" button in empty state works
           <Dashboard onNavigate={setActiveTab} />
         );
     }
@@ -57,7 +52,6 @@ function App() {
 
   return (
     <AppShell activeTab={activeTab} onTabChange={setActiveTab}>
-      {/* Global Status Indicator (Optional: move inside components if preferred) */}
       <div className="fixed top-4 right-4 z-50 pointer-events-none opacity-0 md:opacity-100">
          <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1 rounded-full border border-white/5">
              <span className={`h-2 w-2 rounded-full ${status === 'Ready' ? 'bg-green-500' : 'bg-red-500'}`} />

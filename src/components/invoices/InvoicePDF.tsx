@@ -9,12 +9,9 @@ const styles = StyleSheet.create({
   label: { fontSize: 8, color: '#666', marginBottom: 2, textTransform: 'uppercase' },
   value: { fontSize: 10, marginBottom: 8 },
 
-  // Grid
   row: { flexDirection: 'row' },
-  col3: { width: '33%' },
   col2: { width: '50%' },
 
-  // Table
   table: { marginTop: 20, borderWidth: 1, borderColor: '#eee' },
   tableHeader: { flexDirection: 'row', backgroundColor: '#f9fafb', padding: 8, borderBottomWidth: 1, borderBottomColor: '#eee' },
   tableRow: { flexDirection: 'row', padding: 8, borderBottomWidth: 1, borderBottomColor: '#eee' },
@@ -23,12 +20,10 @@ const styles = StyleSheet.create({
   cellPrice: { flex: 1, textAlign: 'right' },
   cellTotal: { flex: 1, textAlign: 'right' },
 
-  // Totals
-  totals: { marginTop: 20, alignSelf: 'flex-end', width: '40%' },
+  totals: { marginTop: 20, alignSelf: 'flex-end', width: '45%' }, // Widened slightly
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   grandTotal: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, borderTopWidth: 1, borderTopColor: '#ccc', paddingTop: 8, fontWeight: 'bold', fontSize: 12 },
 
-  // Production Rule
   ruleBox: { marginTop: 30, padding: 10, backgroundColor: '#FEF2F2', borderColor: '#FECACA', borderWidth: 1, borderRadius: 4 },
   ruleText: { color: '#DC2626', fontSize: 9, fontWeight: 'bold', textAlign: 'center' },
 
@@ -102,21 +97,42 @@ export const InvoicePDF = ({ invoice, business, customer }: PDFProps) => (
         ))}
       </View>
 
-      {/* Totals */}
+      {/* Totals Section with Discount */}
       <View style={styles.totals}>
         <View style={styles.totalRow}>
           <Text>Subtotal:</Text>
           <Text>{invoice.currency} {invoice.subtotal.toLocaleString()}</Text>
         </View>
-        {invoice.depositAmount > 0 && (
+
+        {/* Render Discount if it exists */}
+        {invoice.discount > 0 && (
           <View style={styles.totalRow}>
-            <Text>Deposit Paid:</Text>
+            <Text style={{ color: '#ef4444' }}>
+              Discount {invoice.discountRate ? `(${invoice.discountRate}%)` : ''}:
+            </Text>
+            <Text style={{ color: '#ef4444' }}>
+              - {invoice.currency} {invoice.discount.toLocaleString()}
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.grandTotal}>
+          <Text>Grand Total:</Text>
+          <Text>{invoice.currency} {invoice.grandTotal.toLocaleString()}</Text>
+        </View>
+
+        {invoice.depositAmount > 0 && (
+          <View style={[styles.totalRow, { marginTop: 4 }]}>
+            <Text>Amount Paid:</Text>
             <Text>({invoice.currency} {invoice.depositAmount.toLocaleString()})</Text>
           </View>
         )}
-        <View style={styles.grandTotal}>
-          <Text>Balance Due:</Text>
-          <Text>{invoice.currency} {(invoice.grandTotal - invoice.depositAmount).toLocaleString()}</Text>
+
+        <View style={[styles.totalRow, { marginTop: 8, borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 4 }]}>
+          <Text style={{ fontWeight: 'bold' }}>Balance Due:</Text>
+          <Text style={{ fontWeight: 'bold', color: invoice.grandTotal - invoice.depositAmount > 0 ? '#f97316' : '#22c55e' }}>
+            {invoice.currency} {(invoice.grandTotal - invoice.depositAmount).toLocaleString()}
+          </Text>
         </View>
       </View>
 

@@ -41,6 +41,7 @@ export interface Invoice {
   // Financials
   subtotal: number;
   discount: number;
+  discountRate?: number;
   tax: number;
   grandTotal: number;
   depositAmount: number;

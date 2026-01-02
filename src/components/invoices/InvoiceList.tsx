@@ -1,31 +1,37 @@
+import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { GlassCard } from '../ui/GlassCard';
-import { FileText, Download } from 'lucide-react';
+import { FileText, Download, Share2, CreditCard } from 'lucide-react'; // Changed MessageCircle to Share2
 import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from './InvoicePDF';
-import { useState } from 'react';
+import { PaymentModal } from './PaymentModal';
+import type { Invoice } from '../../types';
 
 export function InvoiceList() {
   const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
   // 1. Fetch Invoices and Join with Customers
   const invoices = useLiveQuery(async () => {
-    const allInvoices = await db.invoices.reverse().toArray(); // Newest first
+    const allInvoices = await db.invoices.reverse().toArray();
     const allCustomers = await db.customers.toArray();
 
-    // Map customer name to invoice
     return allInvoices.map(inv => {
       const customer = allCustomers.find(c => c.id === inv.customerId);
-      return { ...inv, customerName: customer?.name || 'Unknown' };
+      return {
+        ...inv,
+        customerName: customer?.name || 'Unknown',
+        customerPhone: customer?.phone || ''
+      };
     });
   });
 
-  // 2. Handle PDF Generation
-  const handleDownload = async (invoice: any) => {
+  // 2. NATIVE FILE SHARE LOGIC (The Fix)
+  const handleShare = async (invoice: any) => {
     setGeneratingId(invoice.id);
     try {
-      // Fetch full data needed for PDF
+      // A. Gather Data
       const business = await db.businessProfile.orderBy('id').first();
       const customer = await db.customers.get(invoice.customerId);
 
@@ -34,12 +40,74 @@ export function InvoiceList() {
         return;
       }
 
-      // Generate Blob
+      // B. Generate PDF Blob
       const blob = await pdf(
         <InvoicePDF invoice={invoice} business={business} customer={customer} />
       ).toBlob();
 
-      // Force Download using native anchor tag
+      // C. Create a File Object
+      const file = new File([blob], `${invoice.invoiceNumber}.pdf`, { type: 'application/pdf' });
+
+      // D. Check if Browser Supports File Sharing (Mobile usually does)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `Invoice #${invoice.invoiceNumber}`,
+          text: `Hello ${customer.name}, here is your invoice from ${business.businessName}.`,
+        });
+      } else {
+        // Fallback for Desktop (or incompatible browsers)
+        alert("Your browser does not support direct file sharing. The invoice will download instead, and you can attach it manually.");
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${invoice.invoiceNumber}.pdf`;
+        link.click();
+      }
+    } catch (error) {
+      console.error("Error sharing:", error);
+      // Don't alert if user just cancelled the share sheet
+      if ((error as Error).name !== 'AbortError') {
+        alert("Failed to share invoice.");
+      }
+    } finally {
+      setGeneratingId(null);
+    }
+  };
+
+  const handlePaymentUpdate = async (amountToAdd: number) => {
+    if (!selectedInvoice || !selectedInvoice.id) return;
+
+    try {
+      const newDeposit = selectedInvoice.depositAmount + amountToAdd;
+      const isPaid = newDeposit >= selectedInvoice.grandTotal;
+      const isPartial = newDeposit > 0 && newDeposit < selectedInvoice.grandTotal;
+      const newStatus = isPaid ? 'paid' : (isPartial ? 'partial' : 'pending');
+
+      await db.invoices.update(selectedInvoice.id, {
+        depositAmount: newDeposit,
+        status: newStatus,
+        updatedAt: new Date()
+      });
+      setSelectedInvoice(null);
+    } catch (error) {
+      console.error("Payment update failed", error);
+    }
+  };
+
+  const handleDownload = async (invoice: any) => {
+    setGeneratingId(invoice.id);
+    try {
+      const business = await db.businessProfile.orderBy('id').first();
+      const customer = await db.customers.get(invoice.customerId);
+
+      if (!business || !customer) return;
+
+      const blob = await pdf(
+        <InvoicePDF invoice={invoice} business={business} customer={customer} />
+      ).toBlob();
+
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -48,7 +116,6 @@ export function InvoiceList() {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error(err);
-      alert("Failed to generate PDF");
     } finally {
       setGeneratingId(null);
     }
@@ -75,16 +142,13 @@ export function InvoiceList() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-white">Invoices</h1>
-        <div className="text-sm text-slate-400">
-          Total: {invoices.length}
-        </div>
+        <div className="text-sm text-slate-400">Total: {invoices.length}</div>
       </div>
 
       <div className="grid gap-4">
         {invoices.map((inv: any) => (
-          <GlassCard key={inv.id} className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <GlassCard key={inv.id} className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 group">
 
-            {/* Left: Info */}
             <div className="flex items-start gap-4">
               <div className={`p-3 rounded-full ${getStatusColor(inv.status)}`}>
                 <FileText size={20} />
@@ -105,30 +169,52 @@ export function InvoiceList() {
               </div>
             </div>
 
-            {/* Right: Actions */}
-            <div className="flex items-center gap-4 w-full md:w-auto mt-2 md:mt-0">
-               <div className="text-right flex-1 md:flex-none">
-                 <p className="text-sm text-slate-400">Total</p>
-                 <p className="text-lg font-bold text-white">{inv.currency} {inv.grandTotal.toLocaleString()}</p>
-               </div>
+            <div className="flex items-center gap-2 w-full md:w-auto mt-2 md:mt-0 justify-end">
+
+               {inv.status !== 'paid' && (
+                 <button
+                   onClick={() => setSelectedInvoice(inv)}
+                   className="p-2 hover:bg-green-500/10 rounded-lg text-green-400 transition-colors"
+                   title="Record Payment"
+                 >
+                   <CreditCard size={20} />
+                 </button>
+               )}
+
+               {/* SMART SHARE BUTTON */}
+               <button
+                 onClick={() => handleShare(inv)}
+                 disabled={generatingId === inv.id}
+                 className="p-2 hover:bg-green-500/10 rounded-lg text-green-500 transition-colors"
+                 title="Share PDF (WhatsApp)"
+               >
+                 {generatingId === inv.id ? (
+                    <div className="h-5 w-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+                 ) : (
+                    <Share2 size={20} />
+                 )}
+               </button>
 
                <button
                  onClick={() => handleDownload(inv)}
-                 disabled={generatingId === inv.id}
-                 className="p-2 hover:bg-white/10 rounded-lg text-indigo-400 transition-colors disabled:opacity-50"
+                 className="p-2 hover:bg-white/10 rounded-lg text-indigo-400 transition-colors"
                  title="Download PDF"
                >
-                 {generatingId === inv.id ? (
-                   <div className="h-5 w-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                 ) : (
-                   <Download size={20} />
-                 )}
+                 <Download size={20} />
                </button>
             </div>
 
           </GlassCard>
         ))}
       </div>
+
+      {selectedInvoice && (
+        <PaymentModal
+          invoice={selectedInvoice}
+          onClose={() => setSelectedInvoice(null)}
+          onSave={handlePaymentUpdate}
+        />
+      )}
     </div>
   );
 }
