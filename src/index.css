@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  /* Custom Font Family - "Instant Authority" */
+  --font-sans: 'Inter', 'system-ui', 'sans-serif';
+
+  /* Color Palette - Elegant/Calm */
+  --color-glass-border: rgba(255, 255, 255, 0.1);
+  --color-glass-bg: rgba(255, 255, 255, 0.05);
+  --color-glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+}
+
+/* Base Styles for that "High-end" feel */
+:root {
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #0f172a; /* Slate 900 - Deep background for glass pop */
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  /* Subtle Animated Background Base */
+  background: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+}
