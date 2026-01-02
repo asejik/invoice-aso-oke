@@ -5,6 +5,7 @@ import { GlassCard } from './components/ui/GlassCard';
 import { BusinessProfileForm } from './components/forms/BusinessProfileForm';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { CustomerList } from './components/customers/CustomerList';
+import { InvoiceForm } from './components/invoices/InvoiceForm';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -34,6 +35,14 @@ function App() {
 
       case 'settings':
         return <BusinessProfileForm />;
+
+      case 'create':
+        return (
+          <InvoiceForm
+            onComplete={() => setActiveTab('invoices')}
+            onCancel={() => setActiveTab('dashboard')}
+          />
+        );
 
       case 'dashboard':
       default:
