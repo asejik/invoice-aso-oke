@@ -7,6 +7,7 @@ export interface BusinessProfile {
   phone: string;
   email?: string;
   logoUrl?: string; // We will store the Blob URL here temporarily
+  ownerName?: string;
   bankName: string;
   accountNumber: string;
   accountName: string;
