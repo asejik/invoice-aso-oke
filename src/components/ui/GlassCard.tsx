@@ -1,6 +1,5 @@
 import { motion, type HTMLMotionProps } from 'framer-motion';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { twMerge } from 'tailwind-merge'; // Removed 'clsx' import
 
 interface GlassCardProps extends HTMLMotionProps<'div'> {
   className?: string;
