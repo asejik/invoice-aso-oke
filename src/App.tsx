@@ -4,6 +4,7 @@ import { AppShell } from './components/layout/AppShell';
 import { GlassCard } from './components/ui/GlassCard';
 import { BusinessProfileForm } from './components/forms/BusinessProfileForm';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { CustomerList } from './components/customers/CustomerList';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -28,6 +29,9 @@ function App() {
   // Simple View Router
   const renderContent = () => {
     switch (activeTab) {
+      case 'customers':
+        return <CustomerList />;
+
       case 'settings':
         return <BusinessProfileForm />;
 

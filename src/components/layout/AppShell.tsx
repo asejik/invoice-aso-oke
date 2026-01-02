@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Settings, PlusCircle, Menu } from 'lucide-react';
+import { LayoutDashboard, FileText, Settings, PlusCircle, Menu, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface AppShellProps {
@@ -14,6 +14,7 @@ export function AppShell({ children, activeTab, onTabChange }: AppShellProps) {
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
     { id: 'invoices', label: 'Invoices', icon: FileText },
     { id: 'create', label: 'New', icon: PlusCircle, isPrimary: true },
+    { id: 'customers', label: 'Clients', icon: Users },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
