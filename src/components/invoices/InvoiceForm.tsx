@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
@@ -25,7 +25,7 @@ export function InvoiceForm({ onComplete, onCancel }: Props) {
   const { register, control, handleSubmit, setValue, formState: { errors } } = useForm<any>({
     defaultValues: {
       currency: 'NGN',
-      invoiceNumber: `INV-${Date.now().toString().slice(-4)}`, // Simple auto-gen
+      invoiceNumber: `INV-${Date.now().toString().slice(-4)}`,
       items: [{ description: '', quantity: 1, unitPrice: 0, total: 0 }],
       depositAmount: 0,
       dateIssued: new Date().toISOString().split('T')[0],
@@ -38,16 +38,17 @@ export function InvoiceForm({ onComplete, onCancel }: Props) {
     name: "items"
   });
 
-  // 3. Real-time Calculations (The "Excel" Logic)
+  // 3. Real-time Calculations
   const items = useWatch({ control, name: "items" });
   const deposit = useWatch({ control, name: "depositAmount" });
   const currency = useWatch({ control, name: "currency" });
 
   const totals = useMemo(() => {
-    const subtotal = items.reduce((acc: number, item: any) => {
-      return acc + (Number(item.quantity) * Number(item.unitPrice));
-    }, 0);
-    const grandTotal = subtotal; // Add tax logic here later if needed
+    const subtotal = items?.reduce((acc: number, item: any) => {
+      return acc + (Number(item.quantity || 0) * Number(item.unitPrice || 0));
+    }, 0) || 0;
+
+    const grandTotal = subtotal;
     const balance = grandTotal - Number(deposit || 0);
 
     return { subtotal, grandTotal, balance };
@@ -83,7 +84,7 @@ export function InvoiceForm({ onComplete, onCancel }: Props) {
       };
 
       await db.invoices.add(invoiceData);
-      onComplete(); // Go back to list
+      onComplete();
     } catch (err) {
       console.error(err);
       alert("Failed to save invoice");
@@ -132,23 +133,35 @@ export function InvoiceForm({ onComplete, onCancel }: Props) {
 
             <div>
               <label className={labelClass}>Invoice #</label>
-              <input {...register('invoiceNumber')} className={inputClass} />
+              <input
+                {...register('invoiceNumber', { required: "Invoice Number is required" })}
+                className={inputClass}
+              />
+              {errors.invoiceNumber && <span className="text-red-400 text-xs">{errors.invoiceNumber.message as string}</span>}
             </div>
 
             <div>
               <label className={labelClass}>Date</label>
-              <input type="date" {...register('dateIssued')} className={inputClass} />
+              <input
+                type="date"
+                {...register('dateIssued', { required: true })}
+                className={inputClass}
+              />
             </div>
           </div>
 
           <div className="mt-4">
             <label className={labelClass}>Customer</label>
-            <select {...register('customerId')} className={inputClass}>
+            <select
+              {...register('customerId', { required: "Customer is required" })}
+              className={clsx(inputClass, "[&>option]:bg-slate-900 [&>option]:text-white")}
+            >
               <option value="">Select a client...</option>
               {customers?.map(c => (
                 <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
               ))}
             </select>
+            {errors.customerId && <span className="text-red-400 text-xs">{errors.customerId.message as string}</span>}
           </div>
         </GlassCard>
 

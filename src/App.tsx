@@ -6,6 +6,7 @@ import { BusinessProfileForm } from './components/forms/BusinessProfileForm';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { CustomerList } from './components/customers/CustomerList';
 import { InvoiceForm } from './components/invoices/InvoiceForm';
+import { InvoiceList } from './components/invoices/InvoiceList';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -35,6 +36,9 @@ function App() {
 
       case 'settings':
         return <BusinessProfileForm />;
+
+        case 'invoices':
+        return <InvoiceList />;
 
       case 'create':
         return (
