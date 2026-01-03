@@ -5,7 +5,11 @@ import './index.css';
 
 // FIX: Polyfill Buffer for @react-pdf/renderer
 import { Buffer } from 'buffer';
-window.Buffer = window.Buffer || Buffer;
+
+// Use (window as any) to silence the TypeScript error
+if (typeof window !== 'undefined') {
+  (window as any).Buffer = (window as any).Buffer || Buffer;
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
