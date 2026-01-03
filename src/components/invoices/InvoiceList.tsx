@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { GlassCard } from '../ui/GlassCard';
-import { FileText, Download, Share2, CreditCard } from 'lucide-react'; // Changed MessageCircle to Share2
+import { FileText, Download, Share2, CreditCard, Send } from 'lucide-react'; // Added Send, X
 import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from './InvoicePDF';
 import { PaymentModal } from './PaymentModal';
@@ -12,7 +12,9 @@ export function InvoiceList() {
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
-  // 1. Fetch Invoices and Join with Customers
+  // NEW: State for the "Ready to Share" Modal
+  const [shareModal, setShareModal] = useState<{ file: File, invoice: any } | null>(null);
+
   const invoices = useLiveQuery(async () => {
     const allInvoices = await db.invoices.reverse().toArray();
     const allCustomers = await db.customers.toArray();
@@ -27,58 +29,66 @@ export function InvoiceList() {
     });
   });
 
-  // 2. NATIVE FILE SHARE LOGIC (The Fix)
-  const handleShare = async (invoice: any) => {
+  // 1. PREPARE STAGE: Generate File
+  const handlePrepareShare = async (invoice: any) => {
     setGeneratingId(invoice.id);
     try {
-      // A. Gather Data
       const business = await db.businessProfile.orderBy('id').first();
       const customer = await db.customers.get(invoice.customerId);
 
       if (!business || !customer) {
-        alert("Missing business profile or customer data!");
+        alert("Missing data!");
         return;
       }
 
-      // B. Generate PDF Blob
+      // Generate Blob
       const blob = await pdf(
         <InvoicePDF invoice={invoice} business={business} customer={customer} />
       ).toBlob();
 
-      // C. Create a File Object
+      // Create File
       const file = new File([blob], `${invoice.invoiceNumber}.pdf`, { type: 'application/pdf' });
 
-      // D. Check if Browser Supports File Sharing (Mobile usually does)
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      // Open "Confirm Share" Modal
+      setShareModal({ file, invoice });
+
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      alert(`Error: ${(error as Error).message}`);
+    } finally {
+      setGeneratingId(null);
+    }
+  };
+
+  // 2. EXECUTE STAGE: User Clicks "Share Now" (Instant)
+  const executeShare = async () => {
+    if (!shareModal) return;
+
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [shareModal.file] })) {
         await navigator.share({
-          files: [file],
-          title: `Invoice #${invoice.invoiceNumber}`,
-          text: `Hello ${customer.name}, here is your invoice from ${business.businessName}.`,
+          files: [shareModal.file],
+          title: `Invoice #${shareModal.invoice.invoiceNumber}`,
+          text: `Hello, here is your invoice #${shareModal.invoice.invoiceNumber}.`,
         });
       } else {
-        // Fallback for Desktop (or incompatible browsers)
-        alert("Your browser does not support direct file sharing. The invoice will download instead, and you can attach it manually.");
-
-        const url = URL.createObjectURL(blob);
+        alert("Sharing not supported on this device. Downloading instead.");
+        const url = URL.createObjectURL(shareModal.file);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `${invoice.invoiceNumber}.pdf`;
+        link.download = shareModal.file.name;
         link.click();
       }
     } catch (error) {
-    console.error("Error sharing:", error);
-
-    // UPDATED: Show the specific error message to the user
-    alert(`Debug Error: ${(error as Error).message}`);
-
-  } finally {
-    setGeneratingId(null);
-  }
+      console.error("Share failed/cancelled:", error);
+    } finally {
+      setShareModal(null); // Close modal after sharing
+    }
   };
 
+  // ... (handlePaymentUpdate and handleDownload remain the same) ...
   const handlePaymentUpdate = async (amountToAdd: number) => {
     if (!selectedInvoice || !selectedInvoice.id) return;
-
     try {
       const newDeposit = selectedInvoice.depositAmount + amountToAdd;
       const isPaid = newDeposit >= selectedInvoice.grandTotal;
@@ -101,24 +111,16 @@ export function InvoiceList() {
     try {
       const business = await db.businessProfile.orderBy('id').first();
       const customer = await db.customers.get(invoice.customerId);
-
       if (!business || !customer) return;
 
-      const blob = await pdf(
-        <InvoicePDF invoice={invoice} business={business} customer={customer} />
-      ).toBlob();
-
+      const blob = await pdf(<InvoicePDF invoice={invoice} business={business} customer={customer} />).toBlob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `${invoice.invoiceNumber}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setGeneratingId(null);
-    }
+    } catch (err) { console.error(err); } finally { setGeneratingId(null); }
   };
 
   const getStatusColor = (status: string) => {
@@ -148,7 +150,6 @@ export function InvoiceList() {
       <div className="grid gap-4">
         {invoices.map((inv: any) => (
           <GlassCard key={inv.id} className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 group">
-
             <div className="flex items-start gap-4">
               <div className={`p-3 rounded-full ${getStatusColor(inv.status)}`}>
                 <FileText size={20} />
@@ -170,23 +171,17 @@ export function InvoiceList() {
             </div>
 
             <div className="flex items-center gap-2 w-full md:w-auto mt-2 md:mt-0 justify-end">
-
                {inv.status !== 'paid' && (
-                 <button
-                   onClick={() => setSelectedInvoice(inv)}
-                   className="p-2 hover:bg-green-500/10 rounded-lg text-green-400 transition-colors"
-                   title="Record Payment"
-                 >
+                 <button onClick={() => setSelectedInvoice(inv)} className="p-2 hover:bg-green-500/10 rounded-lg text-green-400 transition-colors" title="Record Payment">
                    <CreditCard size={20} />
                  </button>
                )}
-
-               {/* SMART SHARE BUTTON */}
+               {/* Click 1: Prepare */}
                <button
-                 onClick={() => handleShare(inv)}
+                 onClick={() => handlePrepareShare(inv)}
                  disabled={generatingId === inv.id}
                  className="p-2 hover:bg-green-500/10 rounded-lg text-green-500 transition-colors"
-                 title="Share PDF (WhatsApp)"
+                 title="Share PDF"
                >
                  {generatingId === inv.id ? (
                     <div className="h-5 w-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
@@ -194,26 +189,49 @@ export function InvoiceList() {
                     <Share2 size={20} />
                  )}
                </button>
-
-               <button
-                 onClick={() => handleDownload(inv)}
-                 className="p-2 hover:bg-white/10 rounded-lg text-indigo-400 transition-colors"
-                 title="Download PDF"
-               >
+               <button onClick={() => handleDownload(inv)} className="p-2 hover:bg-white/10 rounded-lg text-indigo-400 transition-colors" title="Download PDF">
                  <Download size={20} />
                </button>
             </div>
-
           </GlassCard>
         ))}
       </div>
 
       {selectedInvoice && (
-        <PaymentModal
-          invoice={selectedInvoice}
-          onClose={() => setSelectedInvoice(null)}
-          onSave={handlePaymentUpdate}
-        />
+        <PaymentModal invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} onSave={handlePaymentUpdate} />
+      )}
+
+      {/* NEW: Intermediate Share Modal */}
+      {shareModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <GlassCard className="w-full max-w-sm p-6 text-center">
+            <div className="mx-auto w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mb-4 text-green-400">
+              <Share2 size={24} />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Invoice Ready</h3>
+            <p className="text-slate-400 text-sm mb-6">
+              PDF generated successfully. Click below to open WhatsApp or other apps.
+            </p>
+
+            <div className="space-y-3">
+              {/* Click 2: Execute (Instant) */}
+              <button
+                onClick={executeShare}
+                className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-green-500/20 active:scale-95 transition-all"
+              >
+                <Send size={18} />
+                Share Now
+              </button>
+
+              <button
+                onClick={() => setShareModal(null)}
+                className="text-slate-500 hover:text-white text-sm py-2"
+              >
+                Cancel
+              </button>
+            </div>
+          </GlassCard>
+        </div>
       )}
     </div>
   );
