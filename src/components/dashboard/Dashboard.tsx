@@ -52,7 +52,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (tab: string) => void })
   const CURRENCIES: CurrencyCode[] = ['NGN', 'USD', 'GBP', 'EUR'];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-28">
       {/* Header & Currency Toggle */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>

@@ -8,4 +8,8 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  // FIX: Polyfill 'global' for @react-pdf/renderer in production
+  define: {
+    global: 'window',
+  },
 })

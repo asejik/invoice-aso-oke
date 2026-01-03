@@ -10,13 +10,14 @@ import type { Invoice, CurrencyCode } from '../../types';
 interface Props {
   onComplete: () => void;
   onCancel: () => void;
+  onAddClient: () => void;
 }
 
 const CURRENCIES: Record<CurrencyCode, string> = {
   NGN: '₦', USD: '$', GBP: '£', EUR: '€'
 };
 
-export function InvoiceForm({ onComplete, onCancel }: Props) {
+export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
   const customers = useLiveQuery(() => db.customers.toArray());
 
   const { register, control, handleSubmit, setValue, formState: { errors } } = useForm<any>({
@@ -140,13 +141,25 @@ export function InvoiceForm({ onComplete, onCancel }: Props) {
           </div>
           <div className="mt-4">
             <label className={labelClass}>Customer</label>
-            <select {...register('customerId', { required: "Required" })} className={clsx(inputClass, "[&>option]:bg-slate-900 [&>option]:text-white")}>
+            <select {...register('customerId', { required: "Customer is Required" })} className={clsx(inputClass, "[&>option]:bg-slate-900 [&>option]:text-white")}>
               <option value="">Select a client...</option>
               {customers?.map(c => (
                 <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
               ))}
             </select>
             {errors.customerId && <span className="text-red-400 text-xs">{errors.customerId.message as string}</span>}
+            {customers?.length === 0 && (
+            <div className="mt-2 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-between">
+                <span className="text-xs text-orange-200">No clients found.</span>
+                <button
+                type="button"
+                onClick={onAddClient}
+                className="text-xs font-bold text-orange-400 hover:text-orange-300 underline"
+                >
+                + Add New Client
+                </button>
+            </div>
+            )}
           </div>
         </GlassCard>
 

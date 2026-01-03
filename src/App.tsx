@@ -36,6 +36,7 @@ function App() {
           <InvoiceForm
             onComplete={() => setActiveTab('invoices')}
             onCancel={() => setActiveTab('dashboard')}
+            onAddClient={() => setActiveTab('customers')}
           />
         );
 
