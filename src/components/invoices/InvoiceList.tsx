@@ -66,12 +66,14 @@ export function InvoiceList() {
         link.click();
       }
     } catch (error) {
-      console.error("Error sharing:", error);
-      // Change this line to show the real error message
-      alert(`Error: ${(error as Error).message}`);
-    } finally {
-      setGeneratingId(null);
-    }
+    console.error("Error sharing:", error);
+
+    // UPDATED: Show the specific error message to the user
+    alert(`Debug Error: ${(error as Error).message}`);
+
+  } finally {
+    setGeneratingId(null);
+  }
   };
 
   const handlePaymentUpdate = async (amountToAdd: number) => {

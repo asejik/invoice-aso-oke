@@ -6,9 +6,9 @@ import './index.css';
 // FIX: Polyfill Buffer for @react-pdf/renderer
 import { Buffer } from 'buffer';
 
-// Use (window as any) to silence the TypeScript error
+// TypeScript will now accept this because of window.d.ts
 if (typeof window !== 'undefined') {
-  (window as any).Buffer = (window as any).Buffer || Buffer;
+  window.Buffer = window.Buffer || Buffer;
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
