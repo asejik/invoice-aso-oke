@@ -1,73 +1,95 @@
-# React + TypeScript + Vite
+# Aso Oke Invoicing App (PWA)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern, offline-first Progressive Web App (PWA) designed to help textile businesses and freelancers manage clients, track payments, and generate professional PDF invoices instantly—even without an internet connection.
 
-Currently, two official plugins are available:
+![App Screenshot](https://via.placeholder.com/800x400?text=App+Screenshot+Placeholder)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🚀 Live Demo
+**[Insert your Vercel URL here]**
 
-## React Compiler
+## ✨ Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+* **📱 Offline-First Architecture:** Built with **Dexie.js (IndexedDB)**, allowing full functionality (creating invoices, adding clients) without internet access. Data syncs locally.
+* **📄 PDF Generation:** Generates professional A4 invoices instantly in the browser using `@react-pdf/renderer`.
+* **🌍 Multi-Currency Support:** Seamlessly switch between **NGN (₦), USD ($), GBP (£), and EUR (€)**.
+* **📊 Real-Time Dashboard:** Tracks "Cash Collected" vs. "Pending Balance" to give a clear view of financial health.
+* **💬 Native WhatsApp Sharing:** Uses the Web Share API to attach PDF invoices directly to WhatsApp chats on mobile devices.
+* **🔢 Smart Numbering:** Automatically detects the last invoice number and increments the next one (e.g., INV-001 → INV-002).
+* **🎨 Glassmorphism UI:** A high-end, modern interface built with **Tailwind CSS v4** and **Framer Motion**.
+* **💰 Payment Tracking:** Handles partial payments, deposits, and automatically updates invoice status (Pending, Partial, Paid).
 
-## Expanding the ESLint configuration
+## 🛠️ Tech Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+* **Framework:** React 18 (Vite)
+* **Styling:** Tailwind CSS v4
+* **Database:** Dexie.js (IndexedDB wrapper)
+* **PDF Engine:** @react-pdf/renderer
+* **Icons:** Lucide React
+* **Animations:** Framer Motion
+* **Deployment:** Vercel
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## ⚙️ Installation & Setup
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Follow these steps to run the project locally.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### 1. Clone the repository
+```bash
+git clone [https://github.com/YOUR_USERNAME/asooke-invoice-app.git](https://github.com/YOUR_USERNAME/asooke-invoice-app.git)
+cd asooke-invoice-app
+2. Install Dependencies
+Note: This project strictly uses React 18 to ensure compatibility with the PDF renderer.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Bash
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+npm install
+3. Run Development Server
+Bash
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+npm run dev
+The app will open at http://localhost:5173.
+
+4. Build for Production
+Bash
+
+npm run build
+📱 How to Use (Mobile PWA)
+Open the live link on your mobile browser (Chrome on Android / Safari on iOS).
+
+Android: Tap the menu (3 dots) ➝ "Install App" or "Add to Home Screen".
+
+iOS: Tap the Share button ➝ "Add to Home Screen".
+
+Launch the app from your home screen. It will now work offline (Airplane Mode).
+
+🐛 Troubleshooting
+PDF Generation Fails in Production
+This project uses Node Polyfills (buffer, process) to allow the PDF engine to run in the browser.
+
+If you encounter Buffer is not defined, ensure src/types/window.d.ts exists.
+
+If you see __SECRET_INTERNALS... error, ensure you are running React 18, not React 19.
+
+React Version Conflict
+If dependencies try to install React 19, run:
+
+Bash
+
+rm -rf node_modules package-lock.json
+npm install
+The package.json contains an overrides section to enforce React 18.
+
+🤝 Contributing
+Fork the repository.
+
+Create a feature branch (git checkout -b feature/AmazingFeature).
+
+Commit your changes (git commit -m 'Add some AmazingFeature').
+
+Push to the branch (git push origin feature/AmazingFeature).
+
+Open a Pull Request.
+
+📄 License
+Distributed under the MIT License. See LICENSE for more information.
+
+Built with ❤️ for the Aso Oke Industry.
