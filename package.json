@@ -23,6 +23,7 @@
     "react-hook-form": "^7.69.0",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.18",
+    "vite-plugin-node-polyfills": "^0.24.0",
     "zod": "^4.3.4"
   },
   "devDependencies": {
