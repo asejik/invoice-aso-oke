@@ -67,10 +67,8 @@ export function InvoiceList() {
       }
     } catch (error) {
       console.error("Error sharing:", error);
-      // Don't alert if user just cancelled the share sheet
-      if ((error as Error).name !== 'AbortError') {
-        alert("Failed to share invoice.");
-      }
+      // Change this line to show the real error message
+      alert(`Error: ${(error as Error).message}`);
     } finally {
       setGeneratingId(null);
     }
