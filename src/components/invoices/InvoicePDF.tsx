@@ -4,7 +4,7 @@ import type { Invoice, BusinessProfile, Customer } from '../../types';
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
   header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  logo: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#f0f0f0' },
+  logo: { width: 100, height: 'auto', objectFit: 'contain', marginBottom: 10 },
   brand: { fontSize: 20, fontWeight: 'bold', textTransform: 'uppercase', color: '#4F46E5' },
   label: { fontSize: 8, color: '#666', marginBottom: 2, textTransform: 'uppercase' },
   value: { fontSize: 10, marginBottom: 8 },

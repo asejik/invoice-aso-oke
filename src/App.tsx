@@ -8,7 +8,11 @@ import { InvoiceList } from './components/invoices/InvoiceList';
 import { Dashboard } from './components/dashboard/Dashboard';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  // FIX: Initialize state from localStorage if available, otherwise default to 'dashboard'
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('activeTab') || 'dashboard';
+  });
+
   const [status, setStatus] = useState('Checking DB...');
 
   useEffect(() => {
@@ -22,6 +26,11 @@ function App() {
     }
     initDB();
   }, []);
+
+  // FIX: Save activeTab to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('activeTab', activeTab);
+  }, [activeTab]);
 
   const renderContent = () => {
     switch (activeTab) {

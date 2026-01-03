@@ -1,9 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { GlassCard } from '../ui/GlassCard';
-import { Save, Plus, Trash2, Calculator, ArrowLeft, Percent } from 'lucide-react'; // Added Percent Icon
+import { Save, Plus, Trash2, Calculator, ArrowLeft, Percent } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { Invoice, CurrencyCode } from '../../types';
 
@@ -23,10 +23,10 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
   const { register, control, handleSubmit, setValue, formState: { errors } } = useForm<any>({
     defaultValues: {
       currency: 'NGN',
-      invoiceNumber: `INV-${Date.now().toString().slice(-4)}`,
+      invoiceNumber: 'Loading...',
       items: [{ description: '', quantity: 1, unitPrice: 0, total: 0 }],
       depositAmount: 0,
-      discountRate: 0, // Default 0%
+      discountRate: 0,
       dateIssued: new Date().toISOString().split('T')[0],
       customerId: ''
     }
@@ -38,16 +38,41 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
   const items = useWatch({ control, name: "items" });
   const deposit = useWatch({ control, name: "depositAmount" });
   const currency = useWatch({ control, name: "currency" });
-  const discountRate = useWatch({ control, name: "discountRate" }); // Watch Discount
+  const discountRate = useWatch({ control, name: "discountRate" });
+
+  // 1. SEQUENTIAL NUMBERING LOGIC
+  useEffect(() => {
+    const setNextInvoiceNumber = async () => {
+      try {
+        const lastInvoice = await db.invoices.orderBy('createdAt').last();
+
+        let nextNum = 1;
+        if (lastInvoice) {
+          // Extract numbers from the last invoice string (e.g. "INV-005" -> 5)
+          const match = lastInvoice.invoiceNumber.match(/(\d+)$/);
+          if (match) {
+            nextNum = parseInt(match[0], 10) + 1;
+          }
+        }
+
+        // Format as 3 digits: INV-001, INV-002, etc.
+        const formatted = `INV-${String(nextNum).padStart(3, '0')}`;
+        setValue('invoiceNumber', formatted);
+      } catch (err) {
+        // Fallback if DB fails
+        setValue('invoiceNumber', `INV-${Date.now().toString().slice(-4)}`);
+      }
+    };
+
+    setNextInvoiceNumber();
+  }, [setValue]);
 
   const totals = useMemo(() => {
     const subtotal = items?.reduce((acc: number, item: any) => {
       return acc + (Number(item.quantity || 0) * Number(item.unitPrice || 0));
     }, 0) || 0;
 
-    // Calculate Discount Amount
     const discountAmount = subtotal * (Number(discountRate || 0) / 100);
-
     const grandTotal = Math.max(0, subtotal - discountAmount);
     const balance = Math.max(0, grandTotal - Number(deposit || 0));
 
@@ -71,8 +96,8 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
           total: item.quantity * item.unitPrice
         })),
         subtotal: totals.subtotal,
-        discount: totals.discountAmount, // Save calculated amount
-        discountRate: Number(data.discountRate), // Save percentage
+        discount: totals.discountAmount,
+        discountRate: Number(data.discountRate),
         tax: 0,
         grandTotal: totals.grandTotal,
         depositAmount: Number(data.depositAmount),
@@ -141,24 +166,29 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
           </div>
           <div className="mt-4">
             <label className={labelClass}>Customer</label>
-            <select {...register('customerId', { required: "Customer is Required" })} className={clsx(inputClass, "[&>option]:bg-slate-900 [&>option]:text-white")}>
+            <select
+              {...register('customerId', { required: "Required" })}
+              className={clsx(inputClass, "[&>option]:bg-slate-900 [&>option]:text-white")}
+            >
               <option value="">Select a client...</option>
               {customers?.map(c => (
                 <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
               ))}
             </select>
             {errors.customerId && <span className="text-red-400 text-xs">{errors.customerId.message as string}</span>}
+
+            {/* 2. ADD CLIENT BUTTON HELPER */}
             {customers?.length === 0 && (
-            <div className="mt-2 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-between">
+              <div className="mt-2 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-between">
                 <span className="text-xs text-orange-200">No clients found.</span>
                 <button
-                type="button"
-                onClick={onAddClient}
-                className="text-xs font-bold text-orange-400 hover:text-orange-300 underline"
+                  type="button"
+                  onClick={onAddClient}
+                  className="text-xs font-bold text-orange-400 hover:text-orange-300 underline"
                 >
-                + Add New Client
+                  + Add New Client
                 </button>
-            </div>
+              </div>
             )}
           </div>
         </GlassCard>
@@ -202,13 +232,10 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
           </div>
         </GlassCard>
 
-        {/* Section 3: Totals, Discount & Payment */}
+        {/* Section 3: Totals & Discount */}
         <GlassCard className="p-6">
           <div className="flex flex-col md:flex-row gap-8">
-
-             {/* Left Column: Inputs */}
              <div className="flex-1 space-y-4">
-                {/* Discount Input */}
                 <div>
                   <label className={labelClass}>Discount (%)</label>
                   <div className="relative max-w-[150px]">
@@ -226,7 +253,6 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
                   </div>
                 </div>
 
-                {/* Deposit Input */}
                 <div>
                   <label className={labelClass}>Deposit / Initial Payment</label>
                   <div className="relative">
@@ -244,14 +270,12 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
                 </div>
              </div>
 
-             {/* Right Column: Calculations */}
              <div className="w-full md:w-72 space-y-3 pt-2 bg-black/20 p-4 rounded-xl border border-white/5 h-fit">
                 <div className="flex justify-between text-sm text-slate-400">
                   <span>Subtotal:</span>
                   <span>{CURRENCIES[currency as CurrencyCode]} {totals.subtotal.toLocaleString()}</span>
                 </div>
 
-                {/* Show Discount if applied */}
                 {totals.discountAmount > 0 && (
                   <div className="flex justify-between text-sm text-green-400">
                     <span>Discount ({discountRate}%):</span>
