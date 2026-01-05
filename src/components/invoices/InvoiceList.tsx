@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { GlassCard } from '../ui/GlassCard';
-import { FileText, Download, Share2, CreditCard, Send } from 'lucide-react'; // Added Send, X
+import { FileText, Download, Share2, CreditCard, Send } from 'lucide-react';
 import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from './InvoicePDF';
 import { PaymentModal } from './PaymentModal';
@@ -11,8 +11,6 @@ import type { Invoice } from '../../types';
 export function InvoiceList() {
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-
-  // NEW: State for the "Ready to Share" Modal
   const [shareModal, setShareModal] = useState<{ file: File, invoice: any } | null>(null);
 
   const invoices = useLiveQuery(async () => {
@@ -29,27 +27,26 @@ export function InvoiceList() {
     });
   });
 
-  // 1. PREPARE STAGE: Generate File
+  // 1. GENERATE & PREPARE SHARE
   const handlePrepareShare = async (invoice: any) => {
     setGeneratingId(invoice.id);
     try {
       const business = await db.businessProfile.orderBy('id').first();
+      // Ensure we fetch the latest customer data even if passed from a stale object
       const customer = await db.customers.get(invoice.customerId);
 
       if (!business || !customer) {
-        alert("Missing data!");
+        alert("Missing business or customer data!");
         return;
       }
 
-      // Generate Blob
+      // Generate PDF with the LATEST invoice data (including new deposit)
       const blob = await pdf(
         <InvoicePDF invoice={invoice} business={business} customer={customer} />
       ).toBlob();
 
-      // Create File
       const file = new File([blob], `${invoice.invoiceNumber}.pdf`, { type: 'application/pdf' });
 
-      // Open "Confirm Share" Modal
       setShareModal({ file, invoice });
 
     } catch (error) {
@@ -60,7 +57,7 @@ export function InvoiceList() {
     }
   };
 
-  // 2. EXECUTE STAGE: User Clicks "Share Now" (Instant)
+  // 2. EXECUTE SHARE (System Dialog)
   const executeShare = async () => {
     if (!shareModal) return;
 
@@ -69,10 +66,10 @@ export function InvoiceList() {
         await navigator.share({
           files: [shareModal.file],
           title: `Invoice #${shareModal.invoice.invoiceNumber}`,
-          text: `Hello, here is your invoice #${shareModal.invoice.invoiceNumber}.`,
+          text: `Hello, here is the updated invoice #${shareModal.invoice.invoiceNumber}.`,
         });
       } else {
-        alert("Sharing not supported on this device. Downloading instead.");
+        // Fallback for desktop
         const url = URL.createObjectURL(shareModal.file);
         const link = document.createElement('a');
         link.href = url;
@@ -82,27 +79,45 @@ export function InvoiceList() {
     } catch (error) {
       console.error("Share failed/cancelled:", error);
     } finally {
-      setShareModal(null); // Close modal after sharing
+      setShareModal(null);
     }
   };
 
-  // ... (handlePaymentUpdate and handleDownload remain the same) ...
+  // 3. UPDATED PAYMENT HANDLER (The Magic Fix)
   const handlePaymentUpdate = async (amountToAdd: number) => {
     if (!selectedInvoice || !selectedInvoice.id) return;
+
     try {
+      // 1. Calculate new values
       const newDeposit = selectedInvoice.depositAmount + amountToAdd;
       const isPaid = newDeposit >= selectedInvoice.grandTotal;
       const isPartial = newDeposit > 0 && newDeposit < selectedInvoice.grandTotal;
       const newStatus = isPaid ? 'paid' : (isPartial ? 'partial' : 'pending');
 
+      // 2. Update Database
       await db.invoices.update(selectedInvoice.id, {
         depositAmount: newDeposit,
         status: newStatus,
         updatedAt: new Date()
       });
+
+      // 3. Create a temporary object with the new data so we don't have to wait for DB refresh
+      const updatedInvoice = {
+        ...selectedInvoice,
+        depositAmount: newDeposit,
+        status: newStatus
+      };
+
+      // 4. Close Payment Modal
       setSelectedInvoice(null);
+
+      // 5. AUTO-TRIGGER: Open the "Ready to Share" modal with the NEW PDF
+      // This solves the request: "Generate another invoice that includes the deposit"
+      await handlePrepareShare(updatedInvoice);
+
     } catch (error) {
       console.error("Payment update failed", error);
+      alert("Failed to update payment");
     }
   };
 
@@ -176,7 +191,7 @@ export function InvoiceList() {
                    <CreditCard size={20} />
                  </button>
                )}
-               {/* Click 1: Prepare */}
+
                <button
                  onClick={() => handlePrepareShare(inv)}
                  disabled={generatingId === inv.id}
@@ -201,33 +216,32 @@ export function InvoiceList() {
         <PaymentModal invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} onSave={handlePaymentUpdate} />
       )}
 
-      {/* NEW: Intermediate Share Modal */}
+      {/* SHARE MODAL */}
       {shareModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <GlassCard className="w-full max-w-sm p-6 text-center">
             <div className="mx-auto w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mb-4 text-green-400">
               <Share2 size={24} />
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">Invoice Ready</h3>
+            <h3 className="text-xl font-bold text-white mb-2">Invoice Updated!</h3>
             <p className="text-slate-400 text-sm mb-6">
-              PDF generated successfully. Click below to open WhatsApp or other apps.
+              The new balance has been calculated. Share the updated PDF now.
             </p>
 
             <div className="space-y-3">
-              {/* Click 2: Execute (Instant) */}
               <button
                 onClick={executeShare}
                 className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-green-500/20 active:scale-95 transition-all"
               >
                 <Send size={18} />
-                Share Now
+                Share Update
               </button>
 
               <button
                 onClick={() => setShareModal(null)}
                 className="text-slate-500 hover:text-white text-sm py-2"
               >
-                Cancel
+                Done
               </button>
             </div>
           </GlassCard>

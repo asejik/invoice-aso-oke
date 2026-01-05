@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { db } from '../../db';
 import { GlassCard } from '../ui/GlassCard';
-import { Save, Upload, Loader2 } from 'lucide-react';
+import { Save, Upload, Loader2, FileText } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { BusinessProfile } from '../../types';
 
@@ -18,9 +18,13 @@ const profileSchema = z.object({
   bankName: z.string().min(2, "Bank name required"),
   accountNumber: z.string().min(10, "Account number required"),
   accountName: z.string().min(2, "Account name required"),
+  // NEW: Optional footer text
+  invoiceFooterText: z.string().optional(),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
+
+const DEFAULT_TERMS = "IMPORTANT: PRODUCTION STARTS ONLY AFTER PAYMENT CONFIRMATION.\nWe do not start work on credit. Thank you for your understanding.";
 
 export function BusinessProfileForm() {
   const [loading, setLoading] = useState(false);
@@ -30,6 +34,9 @@ export function BusinessProfileForm() {
 
   const { register, handleSubmit, setValue, formState: { errors } } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
+    defaultValues: {
+      invoiceFooterText: DEFAULT_TERMS
+    }
   });
 
   // 2. Load existing data on mount
@@ -45,6 +52,8 @@ export function BusinessProfileForm() {
         setValue('bankName', profile.bankName);
         setValue('accountNumber', profile.accountNumber);
         setValue('accountName', profile.accountName);
+        // Load saved terms or use default
+        setValue('invoiceFooterText', profile.invoiceFooterText || DEFAULT_TERMS);
 
         if (profile.logoUrl) {
           setLogoPreview(profile.logoUrl);
@@ -54,11 +63,11 @@ export function BusinessProfileForm() {
     loadProfile();
   }, [setValue]);
 
-  // 3. Handle File Upload (Convert to Base64/Blob URL for preview)
+  // 3. Handle File Upload
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+      if (file.size > 2 * 1024 * 1024) {
         alert("Logo must be under 2MB");
         return;
       }
@@ -73,13 +82,9 @@ export function BusinessProfileForm() {
     setLoading(true);
     setSuccessMsg('');
     try {
-      // Create Blob URL for storage if new file exists
-      // Note: In a real PWA, you might store the actual Blob in IndexedDB
-      // For this MVP, we will use FileReader to store base64 string or keep the Blob
       let finalLogoUrl = logoPreview;
 
       if (logoFile) {
-        // Convert to Base64 for simple storage in IndexedDB (works well for small images)
         finalLogoUrl = await new Promise((resolve) => {
           const reader = new FileReader();
           reader.onloadend = () => resolve(reader.result as string);
@@ -90,17 +95,13 @@ export function BusinessProfileForm() {
       const profileData: BusinessProfile = {
         ...data,
         logoUrl: finalLogoUrl || undefined,
+        // Ensure ID 1 is always used for the singleton profile
+        id: 1,
       };
 
-      // Check if ID exists to update, else add
-      const existing = await db.businessProfile.orderBy('id').first();
-      if (existing && existing.id) {
-        await db.businessProfile.update(existing.id, profileData);
-      } else {
-        await db.businessProfile.add(profileData);
-      }
+      await db.businessProfile.put(profileData);
 
-      setSuccessMsg('Profile saved successfully!');
+      setSuccessMsg('Settings saved successfully!');
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (error) {
       console.error(error);
@@ -110,74 +111,75 @@ export function BusinessProfileForm() {
     }
   };
 
-  // Helper for Input Styling
   const inputClass = "w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all";
   const labelClass = "block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider";
 
   return (
-    <GlassCard className="max-w-2xl mx-auto p-6 md:p-8">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-white">Business Profile</h2>
-        <p className="text-slate-400 text-sm">This information will appear on your invoices.</p>
-      </div>
+    <div className="max-w-2xl mx-auto pb-20">
+      <h2 className="text-2xl font-bold text-white mb-6">Business Settings</h2>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
-        {/* Logo Section */}
-        <div className="flex items-center gap-6">
-          <div className={clsx(
-            "h-24 w-24 rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center overflow-hidden bg-white/5",
-            logoPreview ? "border-solid border-indigo-500" : ""
-          )}>
-            {logoPreview ? (
-              <img src={logoPreview} alt="Logo" className="h-full w-full object-cover" />
-            ) : (
-              <span className="text-xs text-slate-500 text-center px-2">No Logo</span>
-            )}
-          </div>
-          <div>
-            <label htmlFor="logo-upload" className="cursor-pointer inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-colors text-sm font-medium">
-              <Upload size={16} />
-              Upload Logo
-            </label>
-            <input
-              id="logo-upload"
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleLogoChange}
-            />
-            <p className="text-xs text-slate-500 mt-2">Recommended: Square PNG, max 2MB.</p>
-          </div>
-        </div>
+        {/* Card 1: Brand & Contact */}
+        <GlassCard className="p-6 md:p-8">
+            <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
+                <Upload size={20} className="text-indigo-400"/> Brand Identity
+            </h3>
 
-        {/* Basic Info */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass}>Business Name</label>
-            <input {...register('businessName')} className={inputClass} placeholder="e.g. Alari Aso Oke" />
-            {errors.businessName && <span className="text-red-400 text-xs">{errors.businessName.message}</span>}
-          </div>
-          <div>
-            <label className={labelClass}>Owner Name (Optional)</label>
-            <input {...register('ownerName')} className={inputClass} placeholder="e.g. Ronke" />
-          </div>
-          <div>
-            <label className={labelClass}>Phone</label>
-            <input {...register('phone')} className={inputClass} placeholder="+234..." />
-            {errors.phone && <span className="text-red-400 text-xs">{errors.phone.message}</span>}
-          </div>
-        </div>
+            <div className="flex items-center gap-6 mb-6">
+                <div className={clsx(
+                    "h-24 w-24 rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center overflow-hidden bg-white/5",
+                    logoPreview ? "border-solid border-indigo-500" : ""
+                )}>
+                    {logoPreview ? (
+                    <img src={logoPreview} alt="Logo" className="h-full w-full object-cover" />
+                    ) : (
+                    <span className="text-xs text-slate-500 text-center px-2">No Logo</span>
+                    )}
+                </div>
+                <div>
+                    <label htmlFor="logo-upload" className="cursor-pointer inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-colors text-sm font-medium">
+                    <Upload size={16} />
+                    Upload Logo
+                    </label>
+                    <input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+                    <p className="text-xs text-slate-500 mt-2">Recommended: Square PNG, max 2MB.</p>
+                </div>
+            </div>
 
-        <div>
-          <label className={labelClass}>Office Address</label>
-          <textarea {...register('address')} rows={2} className={inputClass} placeholder="Full street address..." />
-          {errors.address && <span className="text-red-400 text-xs">{errors.address.message}</span>}
-        </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label className={labelClass}>Business Name</label>
+                <input {...register('businessName')} className={inputClass} placeholder="e.g. Alari Aso Oke" />
+                {errors.businessName && <span className="text-red-400 text-xs">{errors.businessName.message}</span>}
+            </div>
+            <div>
+                <label className={labelClass}>Owner Name</label>
+                <input {...register('ownerName')} className={inputClass} placeholder="e.g. Ronke" />
+            </div>
+            <div>
+                <label className={labelClass}>Phone</label>
+                <input {...register('phone')} className={inputClass} placeholder="+234..." />
+                {errors.phone && <span className="text-red-400 text-xs">{errors.phone.message}</span>}
+            </div>
+             <div>
+                <label className={labelClass}>Email (Optional)</label>
+                <input {...register('email')} className={inputClass} placeholder="hello@example.com" />
+            </div>
+            </div>
 
-        {/* Payment Details */}
-        <div className="pt-4 border-t border-white/10">
-          <h3 className="text-lg font-semibold text-white mb-4">Payment Details</h3>
+            <div className="mt-4">
+            <label className={labelClass}>Office Address</label>
+            <textarea {...register('address')} rows={2} className={inputClass} placeholder="Full street address..." />
+            {errors.address && <span className="text-red-400 text-xs">{errors.address.message}</span>}
+            </div>
+        </GlassCard>
+
+        {/* Card 2: Bank Details */}
+        <GlassCard className="p-6 md:p-8">
+          <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
+            <Save size={20} className="text-indigo-400"/> Payment Details
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>Bank Name</label>
@@ -195,23 +197,46 @@ export function BusinessProfileForm() {
               {errors.accountName && <span className="text-red-400 text-xs">{errors.accountName.message}</span>}
             </div>
           </div>
-        </div>
+        </GlassCard>
 
-        {/* Action Bar */}
-        <div className="flex items-center justify-end gap-4 pt-4">
-          {successMsg && <span className="text-green-400 text-sm font-medium animate-pulse">{successMsg}</span>}
+        {/* Card 3: Invoice Terms (NEW) */}
+        <GlassCard className="p-6 md:p-8">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <FileText size={20} className="text-indigo-400"/>
+                Invoice Footer / Terms
+            </h3>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-medium shadow-lg shadow-indigo-500/20 transition-all disabled:opacity-50"
-          >
-            {loading ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-            Save Profile
-          </button>
+            <div>
+                <label className={labelClass}>
+                    Footer Message (Appears in Red Box)
+                </label>
+                <textarea
+                    {...register('invoiceFooterText')}
+                    rows={4}
+                    className={inputClass}
+                    placeholder="e.g. No refunds after production begins..."
+                />
+                <p className="text-xs text-slate-500 mt-2">
+                    This text will appear at the bottom of every PDF invoice.
+                </p>
+            </div>
+        </GlassCard>
+
+        {/* Floating Save Button */}
+        <div className="flex justify-end pt-4">
+            {successMsg && <span className="text-green-400 text-sm font-medium animate-pulse mr-4 self-center">{successMsg}</span>}
+
+            <button
+                type="submit"
+                disabled={loading}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-indigo-500/20 transition-all disabled:opacity-50"
+            >
+                {loading ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+                Save Settings
+            </button>
         </div>
 
       </form>
-    </GlassCard>
+    </div>
   );
 }

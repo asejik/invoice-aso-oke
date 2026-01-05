@@ -11,6 +11,7 @@ export interface BusinessProfile {
   bankName: string;
   accountNumber: string;
   accountName: string;
+  invoiceFooterText?: string;
 }
 
 export interface Customer {
