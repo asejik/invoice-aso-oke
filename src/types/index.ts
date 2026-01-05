@@ -46,14 +46,24 @@ export interface Invoice {
   tax: number;
   grandTotal: number;
   depositAmount: number;
+  payments?: PaymentRecord[];
 
   // Meta
   currency: CurrencyCode;
   status: 'draft' | 'pending' | 'paid' | 'partial';
   dateIssued: Date;
   dueDate?: Date;
+  notes?: string;
 
   // Sync Status (Critical for Offline Mode)
   isSynced: boolean;
+  createdAt?: Date;
   updatedAt: Date;
+}
+
+export interface PaymentRecord {
+  id: string;
+  date: string;
+  amount: number;
+  note?: string; // Optional: e.g., "Bank Transfer", "Cash"
 }

@@ -6,7 +6,7 @@ import { FileText, Download, Share2, CreditCard, Send } from 'lucide-react';
 import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from './InvoicePDF';
 import { PaymentModal } from './PaymentModal';
-import type { Invoice } from '../../types';
+import type { Invoice, PaymentRecord } from '../../types';
 
 export function InvoiceList() {
   const [generatingId, setGeneratingId] = useState<string | null>(null);
@@ -84,35 +84,48 @@ export function InvoiceList() {
   };
 
   // 3. UPDATED PAYMENT HANDLER (The Magic Fix)
-  const handlePaymentUpdate = async (amountToAdd: number) => {
+  const handlePaymentUpdate = async (amountToAdd: number, note: string) => {
     if (!selectedInvoice || !selectedInvoice.id) return;
 
     try {
-      // 1. Calculate new values
+      // 1. Calculate new totals
       const newDeposit = selectedInvoice.depositAmount + amountToAdd;
       const isPaid = newDeposit >= selectedInvoice.grandTotal;
       const isPartial = newDeposit > 0 && newDeposit < selectedInvoice.grandTotal;
       const newStatus = isPaid ? 'paid' : (isPartial ? 'partial' : 'pending');
 
-      // 2. Update Database
+      // 2. Create new Payment Record
+      const newPayment: PaymentRecord = {
+        id: crypto.randomUUID(),
+        date: new Date().toISOString(),
+        amount: amountToAdd,
+        note: note || 'Payment'
+      };
+
+      // 3. Merge with existing history (handling backward compatibility)
+      const existingPayments = selectedInvoice.payments || (selectedInvoice.depositAmount > 0 ? [
+         { id: 'legacy', date: selectedInvoice.dateIssued.toISOString(), amount: selectedInvoice.depositAmount, note: 'Initial Deposit' }
+      ] : []);
+
+      const updatedPayments = [...existingPayments, newPayment];
+
+      // 4. Update Database
       await db.invoices.update(selectedInvoice.id, {
         depositAmount: newDeposit,
+        payments: updatedPayments, // Save the array
         status: newStatus,
         updatedAt: new Date()
       });
 
-      // 3. Create a temporary object with the new data so we don't have to wait for DB refresh
+      // 5. Create temp object for immediate PDF generation
       const updatedInvoice = {
         ...selectedInvoice,
         depositAmount: newDeposit,
+        payments: updatedPayments,
         status: newStatus
       };
 
-      // 4. Close Payment Modal
       setSelectedInvoice(null);
-
-      // 5. AUTO-TRIGGER: Open the "Ready to Share" modal with the NEW PDF
-      // This solves the request: "Generate another invoice that includes the deposit"
       await handlePrepareShare(updatedInvoice);
 
     } catch (error) {
