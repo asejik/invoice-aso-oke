@@ -3,10 +3,11 @@ import type { Invoice, BusinessProfile, Customer } from '../../types';
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
+  // FIX: Added alignItems: 'flex-start' to ensure logo stays left
   header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  headerLeft: { flexDirection: 'column', alignItems: 'flex-start' }, // NEW STYLE HELPER
 
-  // Logo: Natural aspect ratio
-  logo: { width: 100, height: 'auto', objectFit: 'contain', marginBottom: 10 },
+  logo: { width: 100, height: 'auto', marginBottom: 10 }, // Removed objectFit to prevent centering behavior
 
   brand: { fontSize: 20, fontWeight: 'bold', textTransform: 'uppercase', color: '#4F46E5' },
   label: { fontSize: 8, color: '#666', marginBottom: 2, textTransform: 'uppercase' },
@@ -27,19 +28,17 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   grandTotal: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, borderTopWidth: 1, borderTopColor: '#ccc', paddingTop: 8, fontWeight: 'bold', fontSize: 12 },
 
-  // NEW: History Table Styles
   historyTable: { marginTop: 15, marginBottom: 5, borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 8 },
   historyRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },
   historyText: { fontSize: 8, color: '#666' },
 
-  // NEW: Paid Stamp Styles
   stampContainer: {
     position: 'absolute',
     top: 200,
     right: 40,
     transform: 'rotate(-15deg)',
     borderWidth: 4,
-    borderColor: '#DC2626', // Red
+    borderColor: '#DC2626',
     borderRadius: 10,
     paddingHorizontal: 20,
     paddingVertical: 10,
@@ -68,12 +67,9 @@ interface PDFProps {
 
 export const InvoicePDF = ({ invoice, business, customer }: PDFProps) => {
   const defaultTerms = "IMPORTANT: PRODUCTION STARTS ONLY AFTER PAYMENT CONFIRMATION.\nWe do not start work on credit. Thank you for your understanding.";
-
-  // 1. Calculate Status
   const balance = invoice.grandTotal - invoice.depositAmount;
   const isPaid = balance <= 0;
 
-  // 2. Prepare History (Handle legacy data where payments[] might be missing)
   const history = invoice.payments || (invoice.depositAmount > 0 ? [
     { id: 'init', date: new Date(invoice.dateIssued).toISOString(), amount: invoice.depositAmount, note: 'Initial Deposit' }
   ] : []);
@@ -81,17 +77,15 @@ export const InvoicePDF = ({ invoice, business, customer }: PDFProps) => {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-
-        {/* NEW: PAID STAMP (Only shows if balance is 0 or less) */}
         {isPaid && (
           <View style={styles.stampContainer}>
             <Text style={styles.stampText}>PAID FULLY</Text>
           </View>
         )}
 
-        {/* Header */}
+        {/* Header with explicit left alignment */}
         <View style={styles.header}>
-          <View>
+          <View style={styles.headerLeft}>
             {business.logoUrl && <Image src={business.logoUrl} style={styles.logo} />}
             <Text style={[styles.brand, { marginTop: 10 }]}>{business.businessName}</Text>
             <Text>{business.address}</Text>
@@ -101,7 +95,6 @@ export const InvoicePDF = ({ invoice, business, customer }: PDFProps) => {
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={{ fontSize: 24, fontWeight: 'light', color: '#ccc' }}>INVOICE</Text>
             <Text style={{ fontSize: 12, marginTop: 4 }}>#{invoice.invoiceNumber}</Text>
-
             <View style={{ marginTop: 20 }}>
               <Text style={styles.label}>Date Issued</Text>
               <Text style={styles.value}>{new Date(invoice.dateIssued).toLocaleDateString()}</Text>
@@ -111,7 +104,6 @@ export const InvoicePDF = ({ invoice, business, customer }: PDFProps) => {
 
         <View style={{ height: 1, backgroundColor: '#eee', marginBottom: 20 }} />
 
-        {/* Bill To */}
         <View style={styles.row}>
           <View style={styles.col2}>
             <Text style={styles.label}>Bill To</Text>
@@ -128,7 +120,6 @@ export const InvoicePDF = ({ invoice, business, customer }: PDFProps) => {
           </View>
         </View>
 
-        {/* Items Table */}
         <View style={styles.table}>
           <View style={styles.tableHeader}>
             <Text style={styles.cellDesc}>Item Description</Text>
@@ -146,7 +137,6 @@ export const InvoicePDF = ({ invoice, business, customer }: PDFProps) => {
           ))}
         </View>
 
-        {/* Totals Section */}
         <View style={styles.totals}>
           <View style={styles.totalRow}>
             <Text>Subtotal:</Text>
@@ -169,7 +159,6 @@ export const InvoicePDF = ({ invoice, business, customer }: PDFProps) => {
             <Text>{invoice.currency} {invoice.grandTotal.toLocaleString()}</Text>
           </View>
 
-          {/* NEW: Payment History Section */}
           {history.length > 0 && (
              <View style={styles.historyTable}>
                <Text style={[styles.historyText, { fontWeight: 'bold', marginBottom: 4 }]}>Payment History:</Text>
@@ -199,18 +188,15 @@ export const InvoicePDF = ({ invoice, business, customer }: PDFProps) => {
           </View>
         </View>
 
-        {/* Dynamic Rule Box */}
         <View style={styles.ruleBox}>
           <Text style={styles.ruleText}>
             {business.invoiceFooterText || defaultTerms}
           </Text>
         </View>
 
-        {/* Footer */}
         <View style={styles.footer}>
           <Text>Generated by {business.businessName} • Thank you for your business!</Text>
         </View>
-
       </Page>
     </Document>
   );
