@@ -217,7 +217,7 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
                   <div className="w-20">
-                     <input type="number" {...register(`items.${index}.quantity` as const)} className={clsx(inputClass, "text-right")} placeholder="Qty" min="1"/>
+                     <input type="number" {...register(`items.${index}.quantity` as const)} className={clsx(inputClass, "text-right")} placeholder="Qty" min="0.1" step="any" />
                   </div>
                   <div className="w-32 relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">{CURRENCIES[currency as CurrencyCode]}</span>
