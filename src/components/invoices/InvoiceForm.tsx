@@ -243,7 +243,7 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
                       <Percent size={14} />
                     </span>
                     <input
-                      type="number"
+                      type="number" step="any"
                       {...register('discountRate')}
                       className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 pl-9 text-white focus:outline-none focus:border-indigo-500 transition-all"
                       placeholder="0"
