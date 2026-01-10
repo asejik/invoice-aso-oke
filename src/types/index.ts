@@ -43,6 +43,7 @@ export interface Invoice {
   subtotal: number;
   discount: number;
   discountRate?: number;
+  discountType?: 'percentage' | 'fixed';
   tax: number;
   grandTotal: number;
   depositAmount: number;

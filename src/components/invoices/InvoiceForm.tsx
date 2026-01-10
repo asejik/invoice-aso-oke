@@ -20,13 +20,14 @@ const CURRENCIES: Record<CurrencyCode, string> = {
 export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
   const customers = useLiveQuery(() => db.customers.toArray());
 
-  const { register, control, handleSubmit, setValue, formState: { errors } } = useForm<any>({
+  const { register, control, handleSubmit, setValue } = useForm<any>({
     defaultValues: {
       currency: 'NGN',
       invoiceNumber: 'Loading...',
       items: [{ description: '', quantity: 1, unitPrice: 0, total: 0 }],
       depositAmount: 0,
       discountRate: 0,
+      discountType: 'percentage', // Default to percentage
       dateIssued: new Date().toISOString().split('T')[0],
       customerId: ''
     }
@@ -34,50 +35,50 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
 
-  // Watch values for real-time math
   const items = useWatch({ control, name: "items" });
   const deposit = useWatch({ control, name: "depositAmount" });
   const currency = useWatch({ control, name: "currency" });
   const discountRate = useWatch({ control, name: "discountRate" });
+  const discountType = useWatch({ control, name: "discountType" }); // Watch the toggle state
 
-  // 1. SEQUENTIAL NUMBERING LOGIC
+  // 1. SEQUENTIAL NUMBERING
   useEffect(() => {
     const setNextInvoiceNumber = async () => {
       try {
         const lastInvoice = await db.invoices.orderBy('createdAt').last();
-
         let nextNum = 1;
         if (lastInvoice) {
-          // Extract numbers from the last invoice string (e.g. "INV-005" -> 5)
           const match = lastInvoice.invoiceNumber.match(/(\d+)$/);
-          if (match) {
-            nextNum = parseInt(match[0], 10) + 1;
-          }
+          if (match) nextNum = parseInt(match[0], 10) + 1;
         }
-
-        // Format as 3 digits: INV-001, INV-002, etc.
-        const formatted = `INV-${String(nextNum).padStart(3, '0')}`;
-        setValue('invoiceNumber', formatted);
+        setValue('invoiceNumber', `INV-${String(nextNum).padStart(3, '0')}`);
       } catch (err) {
-        // Fallback if DB fails
         setValue('invoiceNumber', `INV-${Date.now().toString().slice(-4)}`);
       }
     };
-
     setNextInvoiceNumber();
   }, [setValue]);
 
+  // 2. UPDATED MATH LOGIC (Handles Fixed vs Percentage)
   const totals = useMemo(() => {
     const subtotal = items?.reduce((acc: number, item: any) => {
       return acc + (Number(item.quantity || 0) * Number(item.unitPrice || 0));
     }, 0) || 0;
 
-    const discountAmount = subtotal * (Number(discountRate || 0) / 100);
+    let discountAmount = 0;
+    const rate = Number(discountRate || 0);
+
+    if (discountType === 'fixed') {
+      discountAmount = rate; // Direct subtraction (e.g. 5000)
+    } else {
+      discountAmount = subtotal * (rate / 100); // Percentage calculation
+    }
+
     const grandTotal = Math.max(0, subtotal - discountAmount);
     const balance = Math.max(0, grandTotal - Number(deposit || 0));
 
     return { subtotal, discountAmount, grandTotal, balance };
-  }, [items, deposit, discountRate]);
+  }, [items, deposit, discountRate, discountType]);
 
   const onSubmit = async (data: any) => {
     try {
@@ -98,6 +99,7 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
         subtotal: totals.subtotal,
         discount: totals.discountAmount,
         discountRate: Number(data.discountRate),
+        discountType: data.discountType, // Save the type
         tax: 0,
         grandTotal: totals.grandTotal,
         depositAmount: Number(data.depositAmount),
@@ -127,13 +129,12 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
         </button>
         <div>
           <h2 className="text-2xl font-bold text-white">New Invoice</h2>
-          <p className="text-slate-400 text-sm">Create a new order for production.</p>
+          <p className="text-slate-400 text-sm">Create a new order.</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
-        {/* Section 1: Meta Data */}
         <GlassCard className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -157,7 +158,6 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
             <div>
               <label className={labelClass}>Invoice #</label>
               <input {...register('invoiceNumber', { required: "Required" })} className={inputClass} />
-              {errors.invoiceNumber && <span className="text-red-400 text-xs">{errors.invoiceNumber.message as string}</span>}
             </div>
             <div>
               <label className={labelClass}>Date</label>
@@ -175,25 +175,15 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
                 <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
               ))}
             </select>
-            {errors.customerId && <span className="text-red-400 text-xs">{errors.customerId.message as string}</span>}
-
-            {/* 2. ADD CLIENT BUTTON HELPER */}
             {customers?.length === 0 && (
               <div className="mt-2 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-between">
                 <span className="text-xs text-orange-200">No clients found.</span>
-                <button
-                  type="button"
-                  onClick={onAddClient}
-                  className="text-xs font-bold text-orange-400 hover:text-orange-300 underline"
-                >
-                  + Add New Client
-                </button>
+                <button type="button" onClick={onAddClient} className="text-xs font-bold text-orange-400 hover:text-orange-300 underline">+ Add New Client</button>
               </div>
             )}
           </div>
         </GlassCard>
 
-        {/* Section 2: Items */}
         <GlassCard className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-white">Order Items</h3>
@@ -217,7 +207,14 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
                   <div className="w-20">
-                     <input type="number" step="any" min="0.1" {...register(`items.${index}.quantity` as const)} className={clsx(inputClass, "text-right")} placeholder="Qty"/>
+                     <input
+                       type="number"
+                       step="any" // FIX: Allows 3.5 yards
+                       {...register(`items.${index}.quantity` as const)}
+                       className={clsx(inputClass, "text-right")}
+                       placeholder="Qty"
+                       min="0.1"
+                     />
                   </div>
                   <div className="w-32 relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">{CURRENCIES[currency as CurrencyCode]}</span>
@@ -232,23 +229,34 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
           </div>
         </GlassCard>
 
-        {/* Section 3: Totals & Discount */}
         <GlassCard className="p-6">
           <div className="flex flex-col md:flex-row gap-8">
              <div className="flex-1 space-y-4">
+
+                {/* 3. NEW DISCOUNT TOGGLE SECTION */}
                 <div>
-                  <label className={labelClass}>Discount (%)</label>
-                  <div className="relative max-w-[150px]">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
-                      <Percent size={14} />
+                  <div className="flex justify-between items-center mb-1">
+                     <label className={labelClass}>Discount</label>
+                     <button
+                       type="button"
+                       onClick={() => setValue('discountType', discountType === 'percentage' ? 'fixed' : 'percentage')}
+                       className="text-[10px] bg-white/10 hover:bg-white/20 px-2 py-0.5 rounded text-indigo-300 transition-colors uppercase font-bold tracking-wide"
+                     >
+                       Switch to {discountType === 'percentage' ? 'Fixed Amount' : 'Percentage'}
+                     </button>
+                  </div>
+
+                  <div className="relative max-w-[200px]">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-bold">
+                      {discountType === 'percentage' ? <Percent size={14} /> : CURRENCIES[currency as CurrencyCode]}
                     </span>
                     <input
-                      type="number" step="any"
+                      type="number"
+                      step="any" // FIX: Allows 16.6 or 12.50
                       {...register('discountRate')}
                       className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 pl-9 text-white focus:outline-none focus:border-indigo-500 transition-all"
-                      placeholder="0"
+                      placeholder={discountType === 'percentage' ? "0%" : "0.00"}
                       min="0"
-                      max="100"
                     />
                   </div>
                 </div>
@@ -265,7 +273,7 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
                   </div>
                   <p className="text-xs text-indigo-300/80 mt-2 flex items-center gap-1">
                     <Calculator size={12} />
-                    Production starts after deposit confirmation.
+                    Production starts after deposit.
                   </p>
                 </div>
              </div>
@@ -278,7 +286,10 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
 
                 {totals.discountAmount > 0 && (
                   <div className="flex justify-between text-sm text-green-400">
-                    <span>Discount ({discountRate}%):</span>
+                    {/* Show correct label based on type */}
+                    <span>
+                      Discount {discountType === 'percentage' ? `(${discountRate}%)` : '(Fixed)'}:
+                    </span>
                     <span>- {CURRENCIES[currency as CurrencyCode]} {totals.discountAmount.toLocaleString()}</span>
                   </div>
                 )}
@@ -308,7 +319,7 @@ export function InvoiceForm({ onComplete, onCancel, onAddClient }: Props) {
         </GlassCard>
 
         <div className="flex justify-end pt-4">
-           <button type="submit" className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all transform hover:-translate-y-1">
+           <button type="submit" className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-indigo-500/20 transition-all transform hover:-translate-y-1">
             <Save size={20} />
             Generate Invoice
           </button>

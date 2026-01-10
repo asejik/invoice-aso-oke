@@ -146,7 +146,7 @@ export const InvoicePDF = ({ invoice, business, customer }: PDFProps) => {
           {invoice.discount > 0 && (
             <View style={styles.totalRow}>
               <Text style={{ color: '#ef4444' }}>
-                Discount {invoice.discountRate ? `(${invoice.discountRate}%)` : ''}:
+                Discount {invoice.discountType === 'percentage' && invoice.discountRate ? `(${invoice.discountRate}%)` : ''}:
               </Text>
               <Text style={{ color: '#ef4444' }}>
                 - {invoice.currency} {invoice.discount.toLocaleString()}
